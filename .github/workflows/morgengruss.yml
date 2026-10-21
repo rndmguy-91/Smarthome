@@ -86,10 +86,16 @@ jobs:
                   method="POST" if body else "GET"
               )
 
-              with urllib.request.urlopen(
-                  request, timeout=60
-              ) as response:
-                  return response.read()
+              try:
+                with urllib.request.urlopen(
+                    request, timeout=60
+                ) as response:
+                    return response.read()
+            except urllib.error.HTTPError as error:
+                print("API-Fehler:", error.code)
+                print("Details:", error.read().decode("utf-8"))
+                raise
+
 
           def weather_description(code):
               if code == 0:
