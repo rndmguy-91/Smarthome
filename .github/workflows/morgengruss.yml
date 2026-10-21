@@ -4,8 +4,8 @@ name: Morgengruss erzeugen
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 5 * * *'
-      timezone: 'Europe/Berlin'
+    - cron: "0 5 * * *"
+      timezone: "Europe/Berlin"
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ jobs:
       - name: Repository laden
         uses: actions/checkout@v4
 
-      - name: Morgengruss generieren
+      - name: Morgengruss erstellen
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           OPEN_AI_ZOERNER_API_KEY: ${{ secrets.OPEN_AI_ZOERNER_API_KEY }}
@@ -31,24 +31,25 @@ jobs:
           import os
           import json
           import urllib.request
+          import urllib.error
           import urllib.parse
           from datetime import datetime
           from zoneinfo import ZoneInfo
 
-          # =====================================
+          # ==================================
           # KONFIGURATION
-          # =====================================
+          # ==================================
 
-          TIMEZONE = ZoneInfo("Europe/Berlin")
           VOICE_ID = "MJ0RnG71ty4LH3dvNfSd"
           OPENAI_MODEL = "gpt-5-mini"
           ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
-          # Andernach
           LATITUDE = 50.4405
           LONGITUDE = 7.4017
 
-          now = datetime.now(TIMEZONE)
+          now = datetime.now(
+              ZoneInfo("Europe/Berlin")
+          )
 
           weekdays = [
               "Montag", "Dienstag", "Mittwoch",
@@ -63,21 +64,24 @@ jobs:
               "Oktober", "November", "Dezember"
           ]
 
-          weekday = weekdays[now.weekday()]
           date_text = (
-              f"{weekday}, der {now.day}. "
-              f"{months[now.month - 1]} {now.year}"
+              f"{weekdays[now.weekday()]}, "
+              f"der {now.day}. "
+              f"{months[now.month - 1]} "
+              f"{now.year}"
           )
 
-          # =====================================
-          # HILFSFUNKTIONEN
-          # =====================================
+          # ==================================
+          # API HILFSFUNKTION
+          # ==================================
 
           def api_request(url, data=None, headers=None):
-              body = (
-                  json.dumps(data).encode("utf-8")
-                  if data is not None else None
-              )
+              body = None
+
+              if data is not None:
+                  body = json.dumps(
+                      data
+                  ).encode("utf-8")
 
               request = urllib.request.Request(
                   url,
@@ -87,21 +91,39 @@ jobs:
               )
 
               try:
-                with urllib.request.urlopen(
-                    request, timeout=60
-                ) as response:
-                    return response.read()
-            except urllib.error.HTTPError as error:
-                print("API-Fehler:", error.code)
-                print("Details:", error.read().decode("utf-8"))
-                raise
+                  with urllib.request.urlopen(
+                      request,
+                      timeout=60
+                  ) as response:
+                      return response.read()
 
+              except urllib.error.HTTPError as error:
+                  print(
+                      "API-Fehler:",
+                      error.code
+                  )
+
+                  details = error.read().decode(
+                      "utf-8",
+                      errors="replace"
+                  )
+
+                  print(
+                      "Fehlerdetails:",
+                      details
+                  )
+
+                  raise
+
+          # ==================================
+          # WETTER BESCHREIBEN
+          # ==================================
 
           def weather_description(code):
               if code == 0:
-                  return "klarer Himmel"
+                  return "sonnig oder klar"
               if code in (1, 2):
-                  return "überwiegend heiter"
+                  return "leicht bewölkt"
               if code == 3:
                   return "bedeckt"
               if code in (45, 48):
@@ -111,7 +133,7 @@ jobs:
               if code in (61, 63, 65, 66, 67):
                   return "Regen"
               if code in (71, 73, 75, 77):
-                  return "Schneefall"
+                  return "Schnee"
               if code in (80, 81, 82):
                   return "Regenschauer"
               if code in (85, 86):
@@ -120,9 +142,9 @@ jobs:
                   return "Gewitter"
               return "wechselhaft"
 
-          # =====================================
+          # ==================================
           # 1. WETTERDATEN ABRUFEN
-          # =====================================
+          # ==================================
 
           params = {
               "latitude": LATITUDE,
@@ -146,20 +168,33 @@ jobs:
           )
 
           weather_text = (
-              "Aktuelle Wetterdaten sind nicht verfügbar."
+              "Keine Wetterdaten verfügbar."
           )
 
           try:
+              raw_weather = api_request(
+                  weather_url
+              )
+
               weather = json.loads(
-                  api_request(weather_url)
+                  raw_weather
               )
 
               current = weather["current"]
               daily = weather["daily"]
 
-              temperature = current["temperature_2m"]
-              maximum = daily["temperature_2m_max"][0]
-              minimum = daily["temperature_2m_min"][0]
+              temperature = current[
+                  "temperature_2m"
+              ]
+
+              maximum = daily[
+                  "temperature_2m_max"
+              ][0]
+
+              minimum = daily[
+                  "temperature_2m_min"
+              ][0]
+
               rain = daily[
                   "precipitation_probability_max"
               ][0]
@@ -172,75 +207,74 @@ jobs:
                   current["weather_code"]
               )
 
-              weather_text = f"""
-              Ort: Andernach am Rhein.
-              Aktuelle Temperatur: {temperature} Grad.
-              Aktuelle Wetterlage: {current_condition}.
-              Erwartete Wetterlage heute: {condition}.
-              Tageshöchsttemperatur: {maximum} Grad.
-              Tagestiefsttemperatur: {minimum} Grad.
-              Maximale Regenwahrscheinlichkeit
-              heute: {rain} Prozent.
-              """
+              weather_text = (
+                  f"Aktuell {temperature} Grad, "
+                  f"{current_condition}. "
+                  f"Heute erwartet: {condition}. "
+                  f"Maximum: {maximum} Grad. "
+                  f"Minimum: {minimum} Grad. "
+                  f"Maximale Regenwahrscheinlichkeit: "
+                  f"{rain} Prozent."
+              )
 
-              print("Wetterdaten erfolgreich abgerufen")
+              print(
+                  "Wetterdaten erfolgreich abgerufen"
+              )
+              print(weather_text)
 
           except Exception as error:
-              print("Wetterabruf fehlgeschlagen:", error)
+              print(
+                  "Wetterdaten nicht verfügbar:",
+                  str(error)
+              )
 
-          # =====================================
-          # 2. GPT ERSTELLT DIE ANSAGE
-          # =====================================
+          # ==================================
+          # 2. GPT ERZEUGT DEN TEXT
+          # ==================================
 
           prompt = f"""
-          Du erstellst eine persönliche Morgenansage
-          für ein Smart Home in Andernach am Rhein.
+          Du bist die freundliche Stimme eines
+          Smart Homes in Andernach am Rhein.
 
           Heute ist {date_text}.
 
-          Erstelle eine schöne, freundliche und
-          natürlich klingende Morgenbegrüßung
-          auf Deutsch.
+          Erstelle eine warme, angenehme,
+          abwechslungsreiche Morgenansage
+          für zwei Erwachsene.
 
-          Die Ansage richtet sich an zwei Erwachsene,
-          die gemeinsam in einem Haus wohnen.
+          Die Ansage soll Folgendes enthalten:
+          - Einen freundlichen Guten-Morgen-Gruß.
+          - Den heutigen Wochentag und das Datum.
+          - Eine kurze Wetterzusammenfassung.
+          - Einen schönen Wunsch für den Tag.
 
-          STIL:
-          - Warm, sympathisch und angenehm.
-          - Ruhig und freundlich, nicht überdreht.
-          - Eine persönliche Ansprache statt
-            einer nüchternen Nachrichtensendung.
-          - Abwechslungsreich formulieren.
-          - Gelegentlich ein dezenter, charmanter
-            Satz, ohne aufgesetzt zu wirken.
-
-          INHALT:
-          - Beginne mit einer Guten-Morgen-Begrüßung.
-          - Nenne den heutigen Wochentag und das Datum.
-          - Beschreibe kurz das Wetter in Andernach.
-          - Bevorzuge die Tagesprognose gegenüber
-            dem Wetter um 5 Uhr morgens.
-          - Nenne wichtige Temperaturwerte,
-            sofern die Zeit es zulässt.
-          - Schließe mit einem freundlichen Wunsch
-            für den Tag.
-
-          WICHTIG:
-          - Gesprochene Dauer maximal circa
-            20 Sekunden, ideal 15 bis 18 Sekunden.
-          - Formuliere kompakt und natürlich.
-          - Verwende keine Listen und keine Emojis.
-          - Keine Begrüßung außerhalb des Sprechtexts.
-          - Erfinde keine Wetterdaten.
-          - Wenn Wetterdaten fehlen, lasse
-            das Wetter vollständig weg.
-          - Zahlen und Datum natürlich
-            für gesprochene Sprache formulieren.
-          - Gib ausschließlich den Text zurück,
-            der gesprochen werden soll.
-
-          AKTUELLE WETTERDATEN:
+          Wetterinformationen:
           {weather_text}
+
+          Verwende ausschließlich die angegebenen
+          Wetterdaten. Erfinde nichts hinzu.
+          Wenn keine Wetterdaten vorhanden sind,
+          lasse das Wetter vollständig weg.
+
+          Stil:
+          - Ruhig, natürlich und sympathisch.
+          - Nicht übertrieben enthusiastisch.
+          - Keine Floskeln einer Nachrichtensendung.
+          - Gelegentlich etwas charmant.
+          - Jeden Tag eine andere Formulierung.
+
+          Länge:
+          - Ideale Sprechdauer 15 bis 18 Sekunden.
+          - Maximal ungefähr 20 Sekunden.
+          - Halte den Text entsprechend kurz.
+          - Keine langen Wetterberichte.
+          - Höchstens ungefähr 40 gesprochene Wörter.
+
+          Formuliere Datumsangaben und Temperaturen
+          so, dass sie vorgelesen gut klingen.
+
+          Antworte ausschließlich mit dem Text
+          der Ansage.
           """
 
           openai_data = {
@@ -249,30 +283,34 @@ jobs:
               "reasoning": {
                   "effort": "minimal"
               },
-              "text": {
-                  "verbosity": "low"
-              },
-              "max_output_tokens": 350
+              "max_output_tokens": 300
           }
 
-          openai_response = json.loads(
-              api_request(
-                  "https://api.openai.com/v1/responses",
-                  data=openai_data,
-                  headers={
-                      "Authorization": (
-                          "Bearer " + os.environ[
-                              "OPEN_AI_ZOERNER_API_KEY"
-                          ]
-                      ),
-                      "Content-Type": "application/json"
-                  }
-              )
+          openai_url = (
+              "https://api.openai.com/v1/responses"
+          )
+
+          raw_response = api_request(
+              openai_url,
+              data=openai_data,
+              headers={
+                  "Authorization": (
+                      "Bearer "
+                      + os.environ[
+                          "OPEN_AI_ZOERNER_API_KEY"
+                      ]
+                  ),
+                  "Content-Type": "application/json"
+              }
+          )
+
+          result = json.loads(
+              raw_response
           )
 
           text = " ".join(
               part["text"]
-              for item in openai_response.get("output", [])
+              for item in result.get("output", [])
               if item.get("type") == "message"
               for part in item.get("content", [])
               if part.get("type") == "output_text"
@@ -280,15 +318,15 @@ jobs:
 
           if not text:
               raise RuntimeError(
-                  "OpenAI hat keinen Text erzeugt"
+                  "OpenAI hat keinen Text erzeugt."
               )
 
           print("Generierter Morgengruss:")
           print(text)
 
-          # =====================================
-          # 3. ELEVENLABS ERZEUGT DIE MP3
-          # =====================================
+          # ==================================
+          # 3. ELEVENLABS ERZEUGT MP3
+          # ==================================
 
           elevenlabs_url = (
               "https://api.elevenlabs.io/v1/"
@@ -312,23 +350,34 @@ jobs:
               }
           )
 
-          if not audio.startswith(b"ID3") and not (
-              len(audio) > 2
-              and audio[0] == 0xFF
-              and (audio[1] & 0xE0) == 0xE0
-          ):
+          if not audio:
               raise RuntimeError(
-                  "ElevenLabs lieferte keine gültige MP3"
+                  "ElevenLabs lieferte keine Audiodaten."
               )
 
-          with open("morgengruss.mp3", "wb") as file:
+          is_mp3 = (
+              audio.startswith(b"ID3")
+              or (
+                  len(audio) > 2
+                  and audio[0] == 0xFF
+                  and (audio[1] & 0xE0) == 0xE0
+              )
+          )
+
+          if not is_mp3:
+              raise RuntimeError(
+                  "ElevenLabs lieferte keine MP3."
+              )
+
+          # ==================================
+          # 4. DATEIEN SPEICHERN
+          # ==================================
+
+          with open(
+              "morgengruss.mp3",
+              "wb"
+          ) as file:
               file.write(audio)
-
-          print("MP3 erfolgreich erzeugt")
-
-          # =====================================
-          # 4. GENERIERTEN TEXT SPEICHERN
-          # =====================================
 
           with open(
               "morgengruss.txt",
@@ -337,11 +386,13 @@ jobs:
           ) as file:
               file.write(text + "\n")
 
-          print("Morgengruss abgeschlossen")
+          print(
+              "MP3 und Text erfolgreich erstellt."
+          )
 
           PY
 
-      - name: Dateien auf GitHub speichern
+      - name: Dateien committen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
