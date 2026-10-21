@@ -345,16 +345,9 @@ jobs:
               "?output_format=mp3_44100_128"
           )
 
-          audio_data = {
+           audio_data = {
               "text": text,
-              "model_id": ELEVENLABS_MODEL,
-              "voice_settings": {
-                  "stability": 0.70,
-                  "similarity_boost": 0.80,
-                  "style": 0.0,
-                  "speed": 0.95,
-                  "use_speaker_boost": True
-              }
+              "model_id": ELEVENLABS_MODEL
           }
 
           audio = api_request(
