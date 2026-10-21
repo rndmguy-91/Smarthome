@@ -1,5 +1,4 @@
 
-
 name: Morgengruss erzeugen
 
 on:
@@ -11,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: morgengruss
+  cancel-in-progress: false
+
 jobs:
   generate:
     runs-on: ubuntu-latest
@@ -19,7 +22,7 @@ jobs:
       - name: Repository laden
         uses: actions/checkout@v4
 
-      - name: MP3 mit ElevenLabs erzeugen
+      - name: Morgengruss generieren
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           OPEN_AI_ZOERNER_API_KEY: ${{ secrets.OPEN_AI_ZOERNER_API_KEY }}
@@ -28,57 +31,319 @@ jobs:
           import os
           import json
           import urllib.request
+          import urllib.parse
           from datetime import datetime
           from zoneinfo import ZoneInfo
 
-          now = datetime.now(ZoneInfo("Europe/Berlin"))
+          # =====================================
+          # KONFIGURATION
+          # =====================================
 
-          text = (
-              f"Guten Morgen! Heute ist der "
-              f"{now.strftime('%d.%m.%Y')}. "
-              "Die automatische Sprachansage funktioniert!"
+          TIMEZONE = ZoneInfo("Europe/Berlin")
+          VOICE_ID = "MJ0RnG71ty4LH3dvNfSd"
+          OPENAI_MODEL = "gpt-5-mini"
+          ELEVENLABS_MODEL = "eleven_multilingual_v2"
+
+          # Andernach
+          LATITUDE = 50.4405
+          LONGITUDE = 7.4017
+
+          now = datetime.now(TIMEZONE)
+
+          weekdays = [
+              "Montag", "Dienstag", "Mittwoch",
+              "Donnerstag", "Freitag",
+              "Samstag", "Sonntag"
+          ]
+
+          months = [
+              "Januar", "Februar", "März",
+              "April", "Mai", "Juni",
+              "Juli", "August", "September",
+              "Oktober", "November", "Dezember"
+          ]
+
+          weekday = weekdays[now.weekday()]
+          date_text = (
+              f"{weekday}, der {now.day}. "
+              f"{months[now.month - 1]} {now.year}"
           )
 
-          voice_id = "MJ0RnG71ty4LH3dvNfSd"
+          # =====================================
+          # HILFSFUNKTIONEN
+          # =====================================
 
-          url = (
-              "https://api.elevenlabs.io/v1/"
-              f"text-to-speech/{voice_id}"
+          def api_request(url, data=None, headers=None):
+              body = (
+                  json.dumps(data).encode("utf-8")
+                  if data is not None else None
+              )
+
+              request = urllib.request.Request(
+                  url,
+                  data=body,
+                  headers=headers or {},
+                  method="POST" if body else "GET"
+              )
+
+              with urllib.request.urlopen(
+                  request, timeout=60
+              ) as response:
+                  return response.read()
+
+          def weather_description(code):
+              if code == 0:
+                  return "klarer Himmel"
+              if code in (1, 2):
+                  return "überwiegend heiter"
+              if code == 3:
+                  return "bedeckt"
+              if code in (45, 48):
+                  return "neblig"
+              if code in (51, 53, 55, 56, 57):
+                  return "Nieselregen"
+              if code in (61, 63, 65, 66, 67):
+                  return "Regen"
+              if code in (71, 73, 75, 77):
+                  return "Schneefall"
+              if code in (80, 81, 82):
+                  return "Regenschauer"
+              if code in (85, 86):
+                  return "Schneeschauer"
+              if code in (95, 96, 99):
+                  return "Gewitter"
+              return "wechselhaft"
+
+          # =====================================
+          # 1. WETTERDATEN ABRUFEN
+          # =====================================
+
+          params = {
+              "latitude": LATITUDE,
+              "longitude": LONGITUDE,
+              "current": (
+                  "temperature_2m,weather_code"
+              ),
+              "daily": (
+                  "temperature_2m_max,"
+                  "temperature_2m_min,"
+                  "precipitation_probability_max,"
+                  "weather_code"
+              ),
+              "timezone": "Europe/Berlin",
+              "forecast_days": 1
+          }
+
+          weather_url = (
+              "https://api.open-meteo.com/v1/forecast?"
+              + urllib.parse.urlencode(params)
           )
 
-          data = json.dumps({
-              "text": text,
-              "model_id": "eleven_multilingual_v2"
-          }).encode("utf-8")
+          weather_text = (
+              "Aktuelle Wetterdaten sind nicht verfügbar."
+          )
 
-          request = urllib.request.Request(
-              url,
-              data=data,
-              headers={
-                  "xi-api-key": os.environ["ELEVENLABS_API_KEY"],
-                  "Content-Type": "application/json"
+          try:
+              weather = json.loads(
+                  api_request(weather_url)
+              )
+
+              current = weather["current"]
+              daily = weather["daily"]
+
+              temperature = current["temperature_2m"]
+              maximum = daily["temperature_2m_max"][0]
+              minimum = daily["temperature_2m_min"][0]
+              rain = daily[
+                  "precipitation_probability_max"
+              ][0]
+
+              condition = weather_description(
+                  daily["weather_code"][0]
+              )
+
+              current_condition = weather_description(
+                  current["weather_code"]
+              )
+
+              weather_text = f"""
+              Ort: Andernach am Rhein.
+              Aktuelle Temperatur: {temperature} Grad.
+              Aktuelle Wetterlage: {current_condition}.
+              Erwartete Wetterlage heute: {condition}.
+              Tageshöchsttemperatur: {maximum} Grad.
+              Tagestiefsttemperatur: {minimum} Grad.
+              Maximale Regenwahrscheinlichkeit
+              heute: {rain} Prozent.
+              """
+
+              print("Wetterdaten erfolgreich abgerufen")
+
+          except Exception as error:
+              print("Wetterabruf fehlgeschlagen:", error)
+
+          # =====================================
+          # 2. GPT ERSTELLT DIE ANSAGE
+          # =====================================
+
+          prompt = f"""
+          Du erstellst eine persönliche Morgenansage
+          für ein Smart Home in Andernach am Rhein.
+
+          Heute ist {date_text}.
+
+          Erstelle eine schöne, freundliche und
+          natürlich klingende Morgenbegrüßung
+          auf Deutsch.
+
+          Die Ansage richtet sich an zwei Erwachsene,
+          die gemeinsam in einem Haus wohnen.
+
+          STIL:
+          - Warm, sympathisch und angenehm.
+          - Ruhig und freundlich, nicht überdreht.
+          - Eine persönliche Ansprache statt
+            einer nüchternen Nachrichtensendung.
+          - Abwechslungsreich formulieren.
+          - Gelegentlich ein dezenter, charmanter
+            Satz, ohne aufgesetzt zu wirken.
+
+          INHALT:
+          - Beginne mit einer Guten-Morgen-Begrüßung.
+          - Nenne den heutigen Wochentag und das Datum.
+          - Beschreibe kurz das Wetter in Andernach.
+          - Bevorzuge die Tagesprognose gegenüber
+            dem Wetter um 5 Uhr morgens.
+          - Nenne wichtige Temperaturwerte,
+            sofern die Zeit es zulässt.
+          - Schließe mit einem freundlichen Wunsch
+            für den Tag.
+
+          WICHTIG:
+          - Gesprochene Dauer maximal circa
+            20 Sekunden, ideal 15 bis 18 Sekunden.
+          - Formuliere kompakt und natürlich.
+          - Verwende keine Listen und keine Emojis.
+          - Keine Begrüßung außerhalb des Sprechtexts.
+          - Erfinde keine Wetterdaten.
+          - Wenn Wetterdaten fehlen, lasse
+            das Wetter vollständig weg.
+          - Zahlen und Datum natürlich
+            für gesprochene Sprache formulieren.
+          - Gib ausschließlich den Text zurück,
+            der gesprochen werden soll.
+
+          AKTUELLE WETTERDATEN:
+          {weather_text}
+          """
+
+          openai_data = {
+              "model": OPENAI_MODEL,
+              "input": prompt,
+              "reasoning": {
+                  "effort": "minimal"
               },
-              method="POST"
+              "text": {
+                  "verbosity": "low"
+              },
+              "max_output_tokens": 350
+          }
+
+          openai_response = json.loads(
+              api_request(
+                  "https://api.openai.com/v1/responses",
+                  data=openai_data,
+                  headers={
+                      "Authorization": (
+                          "Bearer " + os.environ[
+                              "OPEN_AI_ZOERNER_API_KEY"
+                          ]
+                      ),
+                      "Content-Type": "application/json"
+                  }
+              )
           )
 
-          with urllib.request.urlopen(request, timeout=60) as response:
-              audio = response.read()
+          text = " ".join(
+              part["text"]
+              for item in openai_response.get("output", [])
+              if item.get("type") == "message"
+              for part in item.get("content", [])
+              if part.get("type") == "output_text"
+          ).strip()
+
+          if not text:
+              raise RuntimeError(
+                  "OpenAI hat keinen Text erzeugt"
+              )
+
+          print("Generierter Morgengruss:")
+          print(text)
+
+          # =====================================
+          # 3. ELEVENLABS ERZEUGT DIE MP3
+          # =====================================
+
+          elevenlabs_url = (
+              "https://api.elevenlabs.io/v1/"
+              f"text-to-speech/{VOICE_ID}"
+              "?output_format=mp3_44100_128"
+          )
+
+          audio_data = {
+              "text": text,
+              "model_id": ELEVENLABS_MODEL
+          }
+
+          audio = api_request(
+              elevenlabs_url,
+              data=audio_data,
+              headers={
+                  "xi-api-key": os.environ[
+                      "ELEVENLABS_API_KEY"
+                  ],
+                  "Content-Type": "application/json"
+              }
+          )
+
+          if not audio.startswith(b"ID3") and not (
+              len(audio) > 2
+              and audio[0] == 0xFF
+              and (audio[1] & 0xE0) == 0xE0
+          ):
+              raise RuntimeError(
+                  "ElevenLabs lieferte keine gültige MP3"
+              )
 
           with open("morgengruss.mp3", "wb") as file:
               file.write(audio)
 
           print("MP3 erfolgreich erzeugt")
 
+          # =====================================
+          # 4. GENERIERTEN TEXT SPEICHERN
+          # =====================================
+
+          with open(
+              "morgengruss.txt",
+              "w",
+              encoding="utf-8"
+          ) as file:
+              file.write(text + "\n")
+
+          print("Morgengruss abgeschlossen")
+
           PY
 
-      - name: MP3 auf GitHub speichern
+      - name: Dateien auf GitHub speichern
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add morgengruss.mp3
+          git add morgengruss.mp3 morgengruss.txt
 
           if ! git diff --cached --quiet; then
             git commit -m "Morgengruss aktualisiert"
+            git pull --rebase
             git push
           fi
