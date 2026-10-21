@@ -345,7 +345,7 @@ jobs:
               "?output_format=mp3_44100_128"
           )
 
-           audio_data = {
+          audio_data = {
               "text": text,
               "model_id": ELEVENLABS_MODEL
           }
