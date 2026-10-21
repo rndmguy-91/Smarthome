@@ -22,6 +22,7 @@ jobs:
       - name: MP3 mit ElevenLabs erzeugen
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          OPEN_AI_ZOERNER_API_KEY: ${{ secrets.OPEN_AI_ZOERNER_API_KEY }}
         run: |
           python3 - <<'PY'
           import os
