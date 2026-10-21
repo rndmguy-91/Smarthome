@@ -274,14 +274,12 @@ jobs:
           - Schreibe Datumsangaben vollständig in Worten.
           - Verzichte auf das Jahr bei der Datumsansage.
           - Keine Gedankenstriche, Doppelpunkte oder Auslassungspunkte.
-          - Verwende möglichst wenige Kommas, ohne die Grammatik zu beeinträchtigen.
 
           Länge:
           - Ideale Sprechdauer 15 bis 18 Sekunden.
           - Maximal ungefähr 20 Sekunden.
           - Halte den Text entsprechend kurz.
           - Keine langen Wetterberichte.
-          - Höchstens ungefähr 40 gesprochene Wörter.
 
           Formuliere Datumsangaben und Temperaturen
           so, dass sie vorgelesen gut klingen.
@@ -354,7 +352,7 @@ jobs:
                   "stability": 0.70,
                   "similarity_boost": 0.80,
                   "style": 0.0,
-                  "speed": 1.08,
+                  "speed": 0.95,
                   "use_speaker_boost": True
               }
           }
