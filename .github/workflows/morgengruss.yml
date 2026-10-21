@@ -38,7 +38,7 @@ jobs:
               "Die automatische Sprachansage funktioniert!"
           )
 
-          voice_id = "JBFqnCBsd6RMkjVDRZzb"
+          voice_id = "MJ0RnG71ty4LH3dvNfSd"
 
           url = (
               "https://api.elevenlabs.io/v1/"
