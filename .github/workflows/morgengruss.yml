@@ -336,7 +336,14 @@ jobs:
 
           audio_data = {
               "text": text,
-              "model_id": ELEVENLABS_MODEL
+              "model_id": ELEVENLABS_MODEL,
+              "voice_settings": {
+                  "stability": 0.70,
+                  "similarity_boost": 0.80,
+                  "style": 0.0,
+                  "speed": 1.08,
+                  "use_speaker_boost": True
+              }
           }
 
           audio = api_request(
