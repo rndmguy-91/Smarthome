@@ -40,7 +40,7 @@ jobs:
           # KONFIGURATION
           # ==================================
 
-          VOICE_ID = "syfrwgnm4MyVhoN0zhSN"
+          VOICE_ID = "muSxG4dqYjBCkbpXqbEl"
           OPENAI_MODEL = "gpt-5-mini"
           ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
